@@ -1,92 +1,81 @@
+module SongAttributes
+  NAMES = [:name, :artist, :album]
+end
+
+class Song < Struct.new(*SongAttributes::NAMES)
+  def self.parse(text)
+    new *text.split("\n")
+  end
+end
+
 class Collection
   include Enumerable
 
-  attr_accessor :songs
+  attr_reader :songs
 
-  def initialize(songs = [])
+  def self.parse(text)
+    new text.split("\n\n").map { |song_text| Song.parse(song_text) }
+  end
+
+  def initialize(songs)
     @songs = songs
+  end
+
+  # dynamically get SongAttributes::NAMES
+    # song_attr_accessors = 
+    #   Song.instance_methods - Struct.new(:anything).instance_methods
+    # song_attributes = song_attr_accessors.select do |method_name|
+    #   method_name.to_s[-1] != '='
+    # end
+  SongAttributes::NAMES.each do |attribute|
+    define_method (attribute.to_s + 's') do
+      @songs.map(&attribute).uniq
+    end
+  end
+
+  def filter(criteria)
+    Collection.new @songs.select { |song| criteria.matches? song }
+  end
+  
+  def adjoin(other)
+    Collection.new @songs | other.songs
   end
 
   def each(&block)
     @songs.each &block
   end
-
-  def names
-    @songs.map(&:name).uniq
-  end
-
-  def artists
-    @songs.map(&:artist).uniq
-  end
-
-  def albums
-    @songs.map(&:album).uniq
-  end
-
-  def self.parse(text)
-    new_collection = Collection.new
-    text.split("\n").select { |line| !line.empty? }.each_slice(3) do |song_data|
-        new_collection.songs << Song.new(song_data)
-      end
-    new_collection
-  end
-
-  def filter(criteria)
-    Collection.new @songs.select { |song| criteria.is_satisfied.(song) }
-  end
-
-  def adjoin(other_collection)
-    Collection.new(@songs + other_collection.songs)
-  end
 end
 
-
 class Criteria
-  attr_accessor :is_satisfied
-
-  def initialize(&is_satisfied)
-    @is_satisfied = is_satisfied
-  end
-
-  def create(attribute_name, needle)
-    @is_satisfied = ->(song) { needle == song.send(attribute_name) }
-    self
-  end
-
-  def self.name(name)
-    Criteria.new.create :name, name
-  end
-
-  def self.artist(artist)
-    Criteria.new.create :artist, artist
-  end
-
-  def self.album(album)
-    Criteria.new.create :album, album
-  end
-
-  def &(other)
-    Criteria.new do |song|
-      @is_satisfied.(song) and other.is_satisfied.(song)
+  class << self
+    SongAttributes::NAMES.each do |attribute|
+      define_method attribute do |value|
+        new ->(song) { song.send(attribute) == value }
+      end
     end
   end
 
+  def initialize(condition)
+    @condition = condition
+  end
+
+  def matches?(song)
+    @condition.(song)
+  end
+
   def |(other)
-    Criteria.new do |song|
-      @is_satisfied.(song) or other.is_satisfied.(song)
+    Criteria.new ->(song) do
+      matches?(song) or other.matches?(song)
+    end
+  end
+
+  def &(other)
+    Criteria.new ->(song) do
+      matches?(song) and other.matches?(song)
     end
   end
 
   def !
-    Criteria.new { |song| !@is_satisfied.(song) }
-  end
-end
-
-
-class Song
-  attr_reader :name, :artist, :album
-
-  def initialize( attributes )
-    @name, @artist, @album = attributes
+    Criteria.new ->(song) { not matches?(song) }
   end
 end

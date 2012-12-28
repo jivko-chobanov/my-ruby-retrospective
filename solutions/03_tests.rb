@@ -18,52 +18,97 @@ class TestTask3 < MiniTest::Unit::TestCase
     c = Expr.build [:*, [:variable, :x], [:number, 3]]
     d = Expr.build [:*, [:variable, :x], [:+, [:variable, :x], [:variable, :y]]]
 
-    assert_equal a.evaluate, 5, 'no variables'
-    assert_equal b.evaluate(x: 1, y: 2), 3, 'x y'
-    assert_equal c.evaluate(x: 2), 6, 'x * 3'
-    assert_equal d.evaluate(x: 2, y: 3), 10, 'x * (x+y)'
+    assert_equal 5, a.evaluate, 'no variables'
+    assert_equal 3, b.evaluate(x: 1, y: 2), 'x y'
+    assert_equal 6, c.evaluate(x: 2), 'x * 3'
+    assert_equal 10, d.evaluate(x: 2, y: 3), 'x * (x+y)'
   end
-end
 
-__END__
   def test_evaluate_unary
     e = Expr.build [:-, [:number, 2]]
     f = Expr.build [:sin, [:number, Math::PI / 6]]
     g = Expr.build [:cos, [:number, Math::PI / 6]]
 
-    assert_equal e.evaluate, -2, 'negation of 2'
-    assert_equal f.evaluate, Math.sin(Math::PI / 6), 'sin 30'
-    assert_equal g.evaluate, Math.cos(Math::PI / 6), 'sin 30'
+    assert_equal -2, e.evaluate, 'negation of 2'
+    assert_equal Math.sin(Math::PI / 6), f.evaluate, 'sin 30'
+    assert_equal Math.cos(Math::PI / 6), g.evaluate, 'sin 30'
   end
 
   def test_simplify_no_trigonometry
     a = Expr.build [:number, 2]
-    b = Expr.build [:+, [:number, 2], [:number, 0]]
-    c = Expr.build [:*, [:number, 2], [:number, 1]]
+    a_var = Expr.build [:number, :x]
 
-    assert_equal a.simplify, a, 'number'
-    assert_equal b.simplify, a, 'sum'
-    assert_equal c.simplify.tree, [:number, 2], 'multipl'
+    b = Expr.build [:+, [:number, 2], [:number, 0]]
+    b_var = Expr.build [:+, [:number, :x], [:number, 0]]
+    
+    c = Expr.build [:*, [:number, 2], [:number, 1]]
+    c_zero = Expr.build [:*, [:number, 2], [:number, 0]]
+    zero = Expr.build [:number, 0]
+
+    assert_equal a, a.simplify, 'number'
+    assert_equal a, b.simplify, 'sum'
+    assert_equal a_var, b_var.simplify, 'sum with var'
+    assert_equal a, c.simplify, 'multipl 1'
+    assert_equal zero, c_zero.simplify, 'multipl 0'
   end
 
   def test_simplify_trigonometry
     zero = Expr.build [:number, 0]
-    a = Expr.build [:sin, [:number, 0]]
-    b = Expr.build [:sin, [:number, Math::PI]]
-    c = Expr.build [:cos, [:number, Math::PI / 2]]
+    one = Expr.build [:number, 1]
+    minus_one = Expr.build [:-, [:number, 1]]
+    
+    a_two = Expr.build [:sin, [:number, 2]]
+    a_zero       = Expr.build [:sin, [:number, 0]]
+    b_zero       = Expr.build [:sin, [:number, Math::PI]]
+    c_one        = Expr.build [:sin, [:number, Math::PI / 2]]
+    d_minus_one  = Expr.build [:sin, [:number, 3 * Math::PI / 2]]
+    e_one        = Expr.build [:cos, [:number, 0]]
+    f_minus_one  = Expr.build [:cos, [:number, Math::PI]]
+    j_zero       = Expr.build [:cos, [:number, Math::PI / 2]]
+    h_zero       = Expr.build [:cos, [:number, 3 * Math::PI / 2]]
 
-    assert_equal a.simplify, zero, 'sin 0'
-    assert_equal b.simplify, zero, 'sin pi'
-    assert_equal c.simplify, zero, 'cos pi/2'
+    assert_equal a_two, a_two.simplify
+    assert_equal zero, a_zero.simplify
+    assert_equal zero, b_zero.simplify
+    assert_equal one, c_one.simplify
+    assert_equal minus_one, d_minus_one.simplify
+    assert_equal one, e_one.simplify
+    assert_equal minus_one, f_minus_one.simplify
+    assert_equal zero, j_zero.simplify
+    assert_equal zero, h_zero.simplify
+  end
+
+  def test_recursive_simplify_and_immutable_simplify
+    five = Expr.build [:number, 5]
+    five_complicated = Expr.build([:+,
+      [:sin, [:number, 0]],
+      [:*,
+        [:-, [:-, [:number, 1]]],
+        [:number, 5],
+      ],
+    ])
+
+    assert_equal five, five_complicated.simplify
+    refute_equal five, five_complicated
   end
 
   def test_derivative
     a = Expr.build [:variable, :x]
     b = Expr.build [:number, 3]
-    c = Expr.build [:*, b.tree, a.tree]
+    c = Expr.build [:*, [:variable, :x], [:number, 3]]
 
-    assert_equal a.derive(:x), Expr.build([:number, 1]), "x'"
-    assert_equal b.derive(:x), Expr.build([:number, 0]), "3'"
-    assert_equal c.derive(:x), Expr.build([:number, 3]), "3x'"
+    d = Expr.build [:+, [:variable, :x], [:variable, :x]]
+    d2 = Expr.build [:+, [:number, 1], [:number, 1]]
+
+    sin2 = Expr.build [:*, [:number, 2], [:cos, [:*, [:number, 2], [:variable, :a]]]]
+    cos2 = Expr.build [:*, [:number, 2], [:-, [:sin, [:*, [:number, 2], [:variable, :a]]]]]
+
+    assert_equal Expr.build([:number, 1]), a.derive(:x), "x'"
+    assert_equal Expr.build([:number, 0]), b.derive(:x), "3'"
+    assert_equal Expr.build([:number, 0]), a.derive(:y), "3xdy"
+    assert_equal Expr.build([:number, 3]), c.derive(:x), "3x'"
+    assert_equal d2, d.derive(:x), "(x + x)'"
+    assert_equal sin2, Expr.build([:sin, [:*, [:number, 2], [:variable, :a]]]).derive(:a), "(sin(2x))'"
+    assert_equal cos2, Expr.build([:cos, [:*, [:number, 2], [:variable, :a]]]).derive(:a), "(sin(2x))'"
   end
 end

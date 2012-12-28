@@ -1,277 +1,215 @@
-module Tree
-  def label
-    self.class::LABEL
-  end
-end
-
 class Expr
-  def Expr.build(tree)
-    expr_main_classes = [Number, Variable, Negation, Sine, Cosine, Addition, Multiplication]
-    expr_main_classes.each do |expr_class|
-      if expr_class::LABEL == tree[0]
-        return expr_class.new(*tree.drop(1))
-      end
+  def self.build(tree)
+    tree.size == 3 ? Binary.build(tree) : Unary.build(tree)
+  end
+
+  def self.class_name(tree)
+    case tree.first
+      when :*        then Multiplication
+      when :+        then Addition
+      when :number   then Number
+      when :variable then Variable
+      when :-        then Negation
+      when :sin      then Sin
+      when :cos      then Cos
     end
   end
 
-  def ==(other)
-    tree == other.tree
-  end
-
-  def evaluate(environment={})
-    @linguistic_construction.evaluate environment
-  end
-
-  def simplify
-    @linguistic_construction.simplify
-  end
-end
-
-class Unary < Expr
-  def initialize(tree)
-    @expr = Expr.build tree
-  end
-
-  def simplify
-    self
-  end
-
-  def tree
-    [label, value]
+  def child_class
+    Kernel.const_get(self.class.name)
   end
 end
 
 class Binary < Expr
-  def initialize(tree1, tree2)
-    @expr1 = Expr.build tree1
-    @expr2 = Expr.build tree2
+  attr_reader :left, :right
+
+  def self.build(tree)
+    class_name(tree).new Expr.build(tree[1]), Expr.build(tree[2])
   end
 
-  def evaluate(environment={}, operation)
-    operation.to_proc.(
-      @expr1.evaluate(environment),
-      @expr2.evaluate(environment)
-    )
+  def initialize(left, right)
+    @left = left
+    @right = right
   end
 
-  def tree
-    [label, @expr1.tree, @expr2.tree]
-  end
-end
-
-class Number < Unary
-  LABEL = :number
-
-  include Tree
-
-  def initialize(number)
-    @number = number
+  def ==(other)
+    other.is_a? Binary and 
+      @left == other.left and @right == other.right
   end
 
-  def evaluate(environment={})
-    @number
-  end
-
-  def value
-    @number
-  end
-
-  def derive(variable_name)
-    Expr.build [:number, 0]
-  end
-end
-
-class Variable < Unary
-  LABEL = :variable
-
-  include Tree
-
-  def initialize(variable_name)
-    @variable_name = variable_name
-  end
-
-  def evaluate(environment={})
-    environment.fetch @variable_name, "undefined variable #{@variable_name}"
-  end
-
-  def value
-    @variable_name
-  end
-
-  def derive(variable_name)
-    if variable_name == @variable_name
-      Expr.build [:number, 1]
-    else
-      self
-    end
-  end
-end
-
-class Negation < Unary
-  LABEL = :-
-
-  include Tree
-
-  def initialize(tree)
-    super
-  end
-
-  def evaluate(environment={})
-    -1 * @expr.evaluate(environment)
+  def neutral_element
+    null
   end
 
   def simplify
-    simplified_expr = @expr.simplify
-    if simplified_expr.tree == [:number, 0]
-      return simplified_expr
-    else
-      Expr.build [LABEL, simplified_expr.tree]
+    simplified = child_class.new @left.simplify, @right.simplify
+    if simplified.left == neutral_element
+      simplified.right
+    elsif simplified.right == neutral_element
+      simplified.left
+    else 
+      simplified
     end
-  end
-
-  def value
-    @expr.tree
-  end
-
-  def derive(variable_name)
-    Expr.build [LABEL, @expr.derive(variable_name).tree]
   end
 end
 
-class Sine < Unary
-  LABEL = :sin
+class Unary < Expr
+  attr_reader :arg
 
-  include Tree
-
-  attr_reader :expr
-
-  def initialize(tree)
-    super
-  end
-
-  def evaluate(environment={})
-    Math.sin @expr.evaluate(environment)
-  end
-
-  def simplify
-    simplified_expr = @expr.simplify
-    if [[:number, 0],[:number, Math::PI]].include? simplified_expr.tree
-      return Expr.build [:number, 0]
+  def self.build(tree)
+    if tree[1].is_a? Array
+      arg = Expr.build(tree[1])
     else
-      Expr.build [LABEL, simplified_expr.tree]
+      arg = tree[1]
     end
+
+    class_name(tree).new arg
   end
 
-  def value
-    @expr.tree
+  def initialize(arg)
+    @arg = arg
   end
-
-  def derive(variable_name)
-    Expr.build [:*,
-      simplify.expr.derive(variable_name).tree,
-      [:cos, simplify.expr]]
-  end
-end
-
-class Cosine < Unary
-  LABEL = :cos
-
-  include Tree
-
-  attr_reader :expr
-
-  def initialize(tree)
-    super
-  end
-
-  def evaluate(environment={})
-    Math.cos @expr.evaluate(environment)
+    
+  def ==(other)
+    other.is_a? Unary and @arg == other.arg
   end
 
   def simplify
-    simplified_expr = @expr.simplify
-    if simplified_expr.tree == [:number, Math::PI / 2]
-      return Expr.build [:number, 0]
-    else
-      Expr.build [LABEL, simplified_expr.tree]
-    end
-  end
-
-  def value
-    @expr.tree
-  end
-
-  def derive(variable_name)
-    Expr.build [:*,
-      simplify.expr.derive(variable_name).tree,
-      [:-, [:sin, simplify.expr]]]
-  end
-end
-
-class Addition < Binary
-  LABEL = :+
-
-  include Tree
-
-  def initialize(tree1, tree2)
-    super
-  end
-
-  def evaluate(environment={})
-    super environment, :+
-  end
-
-  def simplify
-    [@expr1, @expr2].map(&:simplify)
-    if @expr1.tree == [:number, 0]
-      return @expr2
-    elsif @expr2.tree == [:number, 0]
-      return @expr1
-    end
-    if @expr1.tree[0] == :number and @expr2.tree[0] == :number
-      return Expr.build [:number, @expr1.evaluate + @expr2.evaluate]
-    end
-    self
-  end
-
-  def derive(variable_name)
-    Expr.build [:+,
-      simplify.expr1.derive(variable_name).tree,
-      simplify.expr2.derive(variable_name).tree]
+    @arg = @arg.simplify
   end
 end
 
 class Multiplication < Binary
-  LABEL = :*
-
-  include Tree
-
-  attr_reader :expr1, :expr2
-
-  def initialize(tree1, tree2)
-    super
+  def evaluate(env = {})
+    @left.evaluate(env) * @right.evaluate(env)
   end
 
-  def evaluate(environment={})
-    super environment, :*
+  def neutral_element
+    Expr.build [:number, 1]
   end
 
   def simplify
-    [@expr1, @expr2].map(&:simplify)
-    if @expr1.tree == [:number, 1]
-      return @expr2
-    elsif @expr2.tree == [:number, 1]
-      return @expr1
+    simplified = super
+    if simplified.is_a?(Multiplication)
+      if simplified.left == Expr.build([:number, 0]) or simplified.right == Expr.build([:number, 0])
+        return Expr.build [:number, 0]
+      end
     end
-    if @expr1.tree[0] == :number and @expr2.tree[0] == :number
-      return Expr.build [:number, @expr1.evaluate * @expr2.evaluate]
-    end
-    self
+    simplified
   end
 
   def derive(variable_name)
-    Expr.build [:+,
-      [:*, simplify.expr1.derive(variable_name).tree, simplify.expr2.tree],
-      [:*, simplify.expr2.derive(variable_name).tree, simplify.expr1.tree]]
+    Addition.new(
+      Multiplication.new(@left, @right.derive(variable_name)), 
+      Multiplication.new(@right, @left.derive(variable_name))
+    ).simplify
+  end
+end
+
+class Addition < Binary
+  def evaluate(env = {})
+    @left.evaluate(env) + @right.evaluate(env)
+  end
+
+  def neutral_element
+    Expr.build [:number, 0]
+  end
+
+  def derive(variable_name)
+    Addition.new(@left.derive(variable_name), @right.derive(variable_name)).simplify
+  end
+end
+
+class Value < Unary
+  def simplify
+    self
+  end
+end
+
+class Number < Value
+  def evaluate(env = {})
+    @arg
+  end
+
+  def derive(variable_name)
+    Expr.build [:number, 0]
+  end 
+end
+
+class Variable < Value
+  def evaluate(env = {})
+    env[@arg]
+  end
+
+  def derive(variable_name)
+    if variable_name == @arg
+      Expr.build [:number, 1]
+    else 
+      Expr.build [:number, 0]
+    end
+  end 
+end
+
+class Negation < Unary
+  def simplify
+    if @arg.is_a? Negation
+      @arg.arg.simplify
+    else
+      Negation.new @arg.simplify
+    end
+  end
+
+  def evaluate(env = {})
+    -@arg.evaluate(env)
+  end
+end
+
+class Sin < Unary
+  def evaluate(env = {})
+    Math.sin @arg.evaluate(env)
+  end
+
+  def simplify
+    case @arg
+      when Expr.build([:number, 0])
+        Expr.build([:number, 0])
+      when Expr.build([:number, Math::PI])
+        Expr.build [:number, 0]
+      when Expr.build([:number, Math::PI / 2])
+        Expr.build [:number, 1]
+      when Expr.build([:number, 3 * Math::PI / 2])
+        Expr.build [:-, [:number, 1]]
+      else
+        Sin.new @arg.simplify
+    end
+  end
+
+  def derive(variable_name)
+    Multiplication.new(@arg.derive(variable_name), Cos.new(@arg)).simplify
+  end
+end
+
+class Cos < Unary
+  def evaluate(env = {})
+    Math.cos @arg.evaluate(env)
+  end
+  
+  def simplify
+    case @arg
+      when Expr.build([:number, 0])
+        Expr.build [:number, 1]
+      when Expr.build([:number, Math::PI])
+        Expr.build [:-, [:number, 1]]
+      when Expr.build([:number, Math::PI / 2])
+        Expr.build [:number, 0]
+      when Expr.build([:number, 3 * Math::PI / 2])
+        Expr.build [:number, 0]
+      else
+        Cos.new @arg.simplify
+    end
+  end
+
+  def derive(variable_name)
+    Multiplication.new(@arg.derive(variable_name), Negation.new(Sin.new(@arg))).simplify
   end
 end
