@@ -1,10 +1,10 @@
 watch('.rb') do
   system 'clear'
-  success = system 'testrb t.rb'
+  success = system 'testrb 04_tests.rb'
 
   if success
-    puts 'OK'
+    puts "OK OK OK OK OK OK OK OK OK OK OK\n\n"
   else
-    puts "Tests failed ;("
+    puts "Tests failed ;(- - - - - - - - - - - - - \n\n"
   end
 end

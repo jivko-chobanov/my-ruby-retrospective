@@ -1,5 +1,14 @@
-require_relative 'solution.rb'
+require_relative '04.rb'
 class Test4 < MiniTest::Unit::TestCase
+  def test_pattern_parts
+    assert /#{Patterns::DOMAIN_NAME}/ =~ '0-dD23'
+    assert /#{Patterns::HOSTNAME}/ =~ 'test.www.domain.net'
+
+    assert /#{Patterns::PHONE_GLOBAL}/ =~ '+883'
+    assert /#{Patterns::PHONE_PREFIX}/ =~ '+883'
+    assert /#{Patterns::PHONE_DELIMITER}/ =~ ' '
+  end
+
   def test_validation_email
     assert Validations.email? 'zhizho91@gmail.com'
     refute Validations.email? 'nomail'
@@ -9,8 +18,8 @@ class Test4 < MiniTest::Unit::TestCase
 
     assert Validations.email? 'd_fdFFD_+.-ffwg456780@host.com'
 
-    assert Validations.email? 'a' * 200 + '@host.com'
-    refute Validations.email? 'a' * 201 + '@host.com'
+    assert Validations.email? 'a' * 201 + '@host.com'
+    refute Validations.email? 'a' * 202 + '@host.com'
 
     refute Validations.email? '@host.com'
     refute Validations.email? '_@host.com'
@@ -24,7 +33,7 @@ class Test4 < MiniTest::Unit::TestCase
     refute Validations.hostname? 'aaa'
 
     assert Validations.hostname? 'knigi.knizhen-pazar.net'
-    refute Validations.hostname? 'no.knigi.knizhen-pazar.net'
+    assert Validations.hostname? 'no.knigi.knizhen-pazar.net'
     refute Validations.hostname? '.knigi.knizhen-pazar.net'
     refute Validations.hostname? 'knigi.knizhen-pazar.'
     refute Validations.hostname? 'knigi..net'
@@ -36,10 +45,8 @@ class Test4 < MiniTest::Unit::TestCase
     assert Validations.hostname? 'Knizhen-pazar.net'
     assert Validations.hostname? '1knizhen-pazar.net'
     
-    refute Validations.hostname? 'k' * 63 + '.net'
-    assert Validations.hostname? 'k' * 62 + '.net'
-    refute Validations.hostname? 's' * 30 + '.' + 'k' * 33 + '.net'
-    assert Validations.hostname? 's' * 30 + '.' + 'k' * 32 + '.net'
+    refute Validations.hostname? 'k' * 64 + '.net'
+    assert Validations.hostname? 'k' * 63 + '.net'
 
     refute Validations.hostname? 'knigi-.knizhen-pazar.net'
     refute Validations.hostname? 'k-.knizhen-pazar.net'
@@ -51,9 +58,6 @@ class Test4 < MiniTest::Unit::TestCase
     assert Validations.hostname? 'k.knizhen-pazar.bg'
 
     assert Validations.hostname? 'k.knizhen-pazar.bg.aA'
-    refute Validations.hostname? 'knigi.knizhen-pazar.net.bbb'
-    refute Validations.hostname? 'knigi.knizhen-pazar.net.9d'
-    refute Validations.hostname? 'knigi.knizhen-pazar.net.a'
   end
 
   def test_phone
@@ -62,9 +66,9 @@ class Test4 < MiniTest::Unit::TestCase
     assert Validations.phone? '0088 3484637'
 
     assert Validations.phone? '0883484637'
-    assert Validations.phone? '0883,48(46-37'
-    assert Validations.phone? '0883),48( 46,-37'
-    refute Validations.phone? '0883 ,-484637'
+    assert Validations.phone? '0883 48(46-37'
+    assert Validations.phone? '0883) 48( 46--37'
+    refute Validations.phone? '0883 --484637'
     refute Validations.phone? '0883484637-'
 
     assert Validations.phone? '+359 88 121-212-12'
@@ -116,7 +120,7 @@ class Test4 < MiniTest::Unit::TestCase
 
   def test_time
     assert Validations.time? '00:00:00'
-    assert Validations.time? '24:59:59'
+    assert Validations.time? '23:59:59'
     
     refute Validations.time? ':00:00'
     refute Validations.time? '25:00:00'
@@ -128,6 +132,7 @@ class Test4 < MiniTest::Unit::TestCase
 
   def test_date_time
     assert Validations.date_time? '0000-01-01 00:00:00'
+    assert Validations.date_time? '0000-01-01T00:00:00'
     refute Validations.date_time? '0000-01-01  00:00:00'
     refute Validations.date_time? '0000-01-0100:00:00'
   end
@@ -148,9 +153,21 @@ class Test4 < MiniTest::Unit::TestCase
     with_flags = PrivacyFilter.new('+359 88 121-212-12 aaa')
     with_flags.preserve_phone_country_code = true
     assert_equal '+359 [FILTERED] aaa', with_flags.filtered
-    
+
     with_flags = PrivacyFilter.new('+359 88 121-212-12 aaa 0883484637')
     with_flags.preserve_phone_country_code = true
     assert_equal '+359 [FILTERED] aaa [PHONE]', with_flags.filtered
+
+    with_flags = PrivacyFilter.new('someone@example.com aaa')
+    with_flags.preserve_email_hostname = true
+    assert_equal '[FILTERED]@example.com aaa', with_flags.filtered
+
+    with_flags = PrivacyFilter.new('someone@example.com aaa')
+    with_flags.partially_preserve_email_username = true
+    assert_equal 'som[FILTERED]@example.com aaa', with_flags.filtered
+
+    with_flags = PrivacyFilter.new('five5@example.com aaa')
+    with_flags.partially_preserve_email_username = true
+    assert_equal '[FILTERED]@example.com aaa', with_flags.filtered
   end
 end 
