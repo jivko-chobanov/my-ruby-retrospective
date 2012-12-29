@@ -2,19 +2,7 @@ module Patterns
   DOMAIN_NAME = /[0-9a-zA-Z](?:[0-9A-Za-z-]{0,61}[0-9a-zA-Z])?/i
   TLD = /[a-zA-Z]{2,3}(?:\.[a-zA-Z]{2})?/i
   HOSTNAME = /(?:#{DOMAIN_NAME}\.)+#{TLD}/i
-  EMAIL_USERNAME_FIRST_SYMBOL = /[0-9a-zA-Z]/
-  EMAIL_USERNAME_NOT_FIRST_SYMBOL = /[A-Za-z0-9_+.-]/
-  EMAIL = /\b
-    #{EMAIL_USERNAME_FIRST_SYMBOL}
-    #{EMAIL_USERNAME_NOT_FIRST_SYMBOL}{,200}
-    @(?<hostname>#{HOSTNAME})\b/ix
-  EMAIL_EXTRACTING_3_LETTERS_OF_USERNAME = /\b
-    (?<username_3_letters>
-      #{EMAIL_USERNAME_FIRST_SYMBOL}
-      #{EMAIL_USERNAME_NOT_FIRST_SYMBOL}{2}
-    )
-    #{EMAIL_USERNAME_NOT_FIRST_SYMBOL}{3,197}
-    @(?<hostname>#{HOSTNAME})\b/ix
+  EMAIL = /\b(?<username>[0-9a-zA-Z][A-Za-z0-9_+.-]{,200})@(?<hostname>#{HOSTNAME})\b/i
 
   PHONE_DELIMITER = /[ ()-]{1,2}/
   PHONE_LOCAL = /(?<![0-9A-Za-z+])0(?!0)(?:#{PHONE_DELIMITER}?[0-9]+)+/
@@ -22,7 +10,6 @@ module Patterns
   PHONE_MAIN = /(?:#{PHONE_DELIMITER}?[0-9]){6,11}/
   PHONE_PREFIX = /(?:#{PHONE_LOCAL}|#{PHONE_GLOBAL})/
   PHONE_NUMBER = /#{PHONE_PREFIX}#{PHONE_MAIN}/
-  PHONE_NUMBER_GLOBAL_ONLY = /(?<country_code>#{PHONE_GLOBAL})#{PHONE_MAIN}/
 
   IP_ADDRESS = /(\d+)\.(\d+)\.(\d+)\.(\d+)/
 
@@ -88,27 +75,41 @@ class PrivacyFilter
 
   def initialize(text)
     @text = text
-    @preserve_phone_country_code = false
-    @preserve_email_hostname = false
-    @partially_preserve_email_username = false
   end
 
   def filtered
-    text = @text
+    filter_phones filter_emails(@text)
+  end
 
-    if @partially_preserve_email_username
-      @preserve_email_hostname = true
-      text.gsub!(EMAIL_EXTRACTING_3_LETTERS_OF_USERNAME, '\k<username_3_letters>[FILTERED]@\k<hostname>')
+  private
+  
+  def filter_emails(text)
+    text.gsub EMAIL do
+      hidden_email $~[:username], $~[:hostname]
     end
-    if @preserve_email_hostname
-      text.gsub!(EMAIL, '[FILTERED]@\k<hostname>')
-    end
-    text.gsub!(EMAIL, "[EMAIL]")
+  end
 
-    if @preserve_phone_country_code
-      text.gsub!(PHONE_NUMBER_GLOBAL_ONLY, '\k<country_code> [FILTERED]')
+  def hidden_email(username, hostname)
+    if @partially_preserve_email_username and username.length > 5
+      "#{username[0..2]}[FILTERED]@#{hostname}"
+    elsif @preserve_email_hostname or @partially_preserve_email_username
+      "[FILTERED]@#{hostname}"
+    else
+      "[EMAIL]"
     end
-    text.gsub!(PHONE_NUMBER, "[PHONE]")
-    text
+  end
+  
+  def filter_phones(text)
+    text.gsub PHONE_NUMBER do
+      hidden_phone $&
+    end
+  end
+
+  def hidden_phone(phone_number)
+    if @preserve_phone_country_code and /\A#{PHONE_GLOBAL}/ =~ phone_number
+      "#{$&} [FILTERED]"
+    else
+      "[PHONE]"
+    end
   end
 end
