@@ -2,19 +2,19 @@ module Patterns
   DOMAIN_NAME = /[0-9a-zA-Z](?:[0-9A-Za-z-]{0,61}[0-9a-zA-Z])?/i
   TLD = /[a-zA-Z]{2,3}(?:\.[a-zA-Z]{2})?/i
   HOSTNAME = /(?:#{DOMAIN_NAME}\.)+#{TLD}/i
-  EMAIL = /\b(?<username>[0-9a-zA-Z][A-Za-z0-9_+.-]{,200})@(?<hostname>#{HOSTNAME})\b/i
+  EMAIL = /\b(?<username>[0-9a-zA-Z][\w+.-]{,200})@(?<hostname>#{HOSTNAME})\b/i
 
   PHONE_DELIMITER = /[ ()-]{1,2}/
-  PHONE_LOCAL = /(?<![0-9A-Za-z+])0(?!0)(?:#{PHONE_DELIMITER}?[0-9]+)+/
-  PHONE_GLOBAL = /(?:00|\+)[0-9]{1,3}/
-  PHONE_MAIN = /(?:#{PHONE_DELIMITER}?[0-9]){6,11}/
+  PHONE_LOCAL = /(?<![0-9A-Za-z+])0(?!0)(?:#{PHONE_DELIMITER}?\d+)+/
+  PHONE_GLOBAL = /(?:00|\+)\d{1,3}/
+  PHONE_MAIN = /(?:#{PHONE_DELIMITER}?\d){6,11}/
   PHONE_PREFIX = /(?:#{PHONE_LOCAL}|#{PHONE_GLOBAL})/
   PHONE_NUMBER = /#{PHONE_PREFIX}#{PHONE_MAIN}/
 
   IP_ADDRESS = /(\d+)\.(\d+)\.(\d+)\.(\d+)/
 
-  INTEGER = /-?(?:0|[1-9][0-9]*)/
-  NUMBER = /#{INTEGER}(?:\.[0-9]+)?/
+  INTEGER = /-?(?:0|[1-9]\d*)/
+  NUMBER = /#{INTEGER}(?:\.\d+)?/
 
   DATE = /\d{4}-(?<month>\d\d)-(?<day>\d\d)/
   TIME = /(?<hours>\d\d):(?<minutes>\d\d):(?<seconds>\d\d)/
@@ -90,15 +90,21 @@ class PrivacyFilter
   end
 
   def hidden_email(username, hostname)
-    if @partially_preserve_email_username and username.length > 5
-      "#{username[0..2]}[FILTERED]@#{hostname}"
-    elsif @preserve_email_hostname or @partially_preserve_email_username
-      "[FILTERED]@#{hostname}"
+    if @preserve_email_hostname or @partially_preserve_email_username
+      "#{hidden_username username}@#{hostname}"
     else
       "[EMAIL]"
     end
   end
-  
+
+  def hidden_username(username)
+    if @partially_preserve_email_username and username.length > 5
+      "#{username[0..2]}[FILTERED]"
+    else
+      "[FILTERED]"
+    end
+  end
+
   def filter_phones(text)
     text.gsub PHONE_NUMBER do
       hidden_phone $&
