@@ -1,4 +1,4 @@
-require_relative 'solution.rb'
+require_relative '02.rb'
 class Collection
   def to_s
     @songs.map(&:to_s)

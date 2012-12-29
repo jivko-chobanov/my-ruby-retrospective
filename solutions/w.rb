@@ -1,6 +1,6 @@
-watch('.rb') do
+watch(/(?<task_name>\d\d).*\.rb/) do |m|
   system 'clear'
-  success = system 'testrb 04_tests.rb'
+  success = system "testrb #{m[:task_name]}_tests.rb"
 
   if success
     puts "OK OK OK OK OK OK OK OK OK OK OK\n\n"

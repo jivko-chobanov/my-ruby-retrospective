@@ -1,4 +1,4 @@
-require_relative 'solution.rb'
+require_relative '03.rb'
 class TestTask3 < MiniTest::Unit::TestCase
   def test_=
     a = Expr.build [:+, [:number, 2], [:number, 3]]
