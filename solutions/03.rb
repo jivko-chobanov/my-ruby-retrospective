@@ -1,22 +1,16 @@
 class Expr
-  def self.classes_by_operation
-    {
-      :*        => Multiplication,
-      :+        => Addition,
-      :number   => Number,
-      :variable => Variable,
-      :-        => Negation,
-      :sin      => Sin,
-      :cos      => Cos,
-    }
-  end
+  @@classes_by_operation = {}
 
   def self.build(tree)
     tree.size == 3 ? Binary.build(tree) : Unary.build(tree)
   end
 
   def self.class_name(tree)
-    classes_by_operation[tree.first]
+    @@classes_by_operation[tree.first]
+  end
+
+  def -@
+    Negation.new self
   end
 
   def *(other)
@@ -38,7 +32,7 @@ class Binary < Expr
   def initialize(left, right)
     @left = left
     @right = right
-    @operation = Expr::classes_by_operation.invert[self.class]
+    @operation = @@classes_by_operation.invert[self.class]
   end
 
   def ==(other)
@@ -58,6 +52,10 @@ class Binary < Expr
     end
     
     sides.size > 0 ? sides.inject(operation) : neutral_element
+  end
+
+  def derive(var)
+    compute_derivative(@left, @right, @left.derive(var), @right.derive(var)).simplify
   end
 end
 
@@ -85,46 +83,51 @@ class Unary < Expr
   def simplify
     @arg = @arg.simplify
   end
+
+  def derive(var)
+    compute_derivative(@arg, @arg.derive(var)).simplify
+  end
 end
 
 class Multiplication < Binary
+  @@classes_by_operation[:*] = self
+
   def evaluate(env = {})
     @left.evaluate(env) * @right.evaluate(env)
   end
 
   def neutral_element
-    Expr.build [:number, 1]
+    Number::ONE
   end
 
   def simplify
     simplified = super
     if simplified.is_a?(Multiplication)
-      if simplified.left == Expr.build([:number, 0]) or simplified.right == Expr.build([:number, 0])
-        return Expr.build [:number, 0]
+      if simplified.left == Number::ZERO or simplified.right == Number::ZERO
+        return Number::ZERO
       end
     end
     simplified
   end
 
-  def derive(variable_name)
-    Addition.new(
-      Multiplication.new(@left, @right.derive(variable_name)), 
-      Multiplication.new(@right, @left.derive(variable_name))
-    ).simplify
+  def compute_derivative(x, y, dx, dy)
+    x * dy + y * dx
   end
 end
 
 class Addition < Binary
+  @@classes_by_operation[:+] = self
+
   def evaluate(env = {})
     @left.evaluate(env) + @right.evaluate(env)
   end
 
   def neutral_element
-    Expr.build [:number, 0]
+    Number::ZERO
   end
 
-  def derive(variable_name)
-    Addition.new(@left.derive(variable_name), @right.derive(variable_name)).simplify
+  def compute_derivative(x, y, dx, dy)
+    dx + dy
   end
 end
 
@@ -135,56 +138,72 @@ class Value < Unary
 end
 
 class Number < Value
+  @@classes_by_operation[:number] = self
+
+  ZERO = Number.new 0
+  ONE = Number.new 1
+
   def evaluate(env = {})
     @arg
   end
 
-  def derive(variable_name)
-    Expr.build [:number, 0]
+  def derive(var)
+    Number::ZERO
   end 
 end
 
 class Variable < Value
+  @@classes_by_operation[:variable] = self
+
   def evaluate(env = {})
-    env[@arg]
+    if env.include? @arg
+      env[@arg]
+    else
+      raise ArgumentError,
+        "The expression has a variable #@arg which is not defined in environment"
+    end
   end
 
-  def derive(variable_name)
-    if variable_name == @arg
-      Expr.build [:number, 1]
+  def derive(var)
+    if var == @arg
+      Number::ONE
     else 
-      Expr.build [:number, 0]
+      Number::ZERO
     end
   end 
 end
 
 class Negation < Unary
+  @@classes_by_operation[:-] = self
+
   def simplify
-    if @arg.is_a? Negation
-      @arg.arg.simplify
-    else
-      Negation.new @arg.simplify
-    end
+    @arg.is_a?(Negation) ? @arg.arg.simplify : Negation.new(@arg.simplify)
   end
 
   def evaluate(env = {})
     -@arg.evaluate(env)
   end
+
+  def compute_derivative(x, dx)
+    -dx
+  end
 end
 
 class Sin < Unary
+  @@classes_by_operation[:sin] = self
+
   def evaluate(env = {})
     Math.sin @arg.evaluate(env)
   end
 
   def simplify
     case @arg
-      when Expr.build([:number, 0])
+      when Number::ZERO
         Expr.build([:number, 0])
       when Expr.build([:number, Math::PI])
-        Expr.build [:number, 0]
+        Number::ZERO
       when Expr.build([:number, Math::PI / 2])
-        Expr.build [:number, 1]
+        Number::ONE
       when Expr.build([:number, 3 * Math::PI / 2])
         Expr.build [:-, [:number, 1]]
       else
@@ -192,32 +211,34 @@ class Sin < Unary
     end
   end
 
-  def derive(variable_name)
-    Multiplication.new(@arg.derive(variable_name), Cos.new(@arg)).simplify
+  def compute_derivative(x, dx)
+    dx * Cos.new(x)
   end
 end
 
 class Cos < Unary
+  @@classes_by_operation[:cos] = self
+
   def evaluate(env = {})
     Math.cos @arg.evaluate(env)
   end
   
   def simplify
     case @arg
-      when Expr.build([:number, 0])
-        Expr.build [:number, 1]
+      when Number::ZERO
+        Number::ONE
       when Expr.build([:number, Math::PI])
         Expr.build [:-, [:number, 1]]
       when Expr.build([:number, Math::PI / 2])
-        Expr.build [:number, 0]
+        Number::ZERO
       when Expr.build([:number, 3 * Math::PI / 2])
-        Expr.build [:number, 0]
+        Number::ZERO
       else
         Cos.new @arg.simplify
     end
   end
 
-  def derive(variable_name)
-    Multiplication.new(@arg.derive(variable_name), Negation.new(Sin.new(@arg))).simplify
+  def compute_derivative(x, dx)
+    dx * -Sin.new(x)
   end
 end

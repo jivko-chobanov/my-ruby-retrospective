@@ -28,10 +28,12 @@ class TestTask3 < MiniTest::Unit::TestCase
     e = Expr.build [:-, [:number, 2]]
     f = Expr.build [:sin, [:number, Math::PI / 6]]
     g = Expr.build [:cos, [:number, Math::PI / 6]]
+    h = Expr.build [:variable, :x]
 
     assert_equal -2, e.evaluate, 'negation of 2'
     assert_equal Math.sin(Math::PI / 6), f.evaluate, 'sin 30'
     assert_equal Math.cos(Math::PI / 6), g.evaluate, 'sin 30'
+    assert_raises(ArgumentError) { h.evaluate }
   end
 
   def test_simplify_no_trigonometry
@@ -94,6 +96,7 @@ class TestTask3 < MiniTest::Unit::TestCase
 
   def test_derivative
     a = Expr.build [:variable, :x]
+    a2 = Expr.build [:-, [:variable, :x]]
     b = Expr.build [:number, 3]
     c = Expr.build [:*, [:variable, :x], [:number, 3]]
 
@@ -104,6 +107,7 @@ class TestTask3 < MiniTest::Unit::TestCase
     cos2 = Expr.build [:*, [:number, 2], [:-, [:sin, [:*, [:number, 2], [:variable, :a]]]]]
 
     assert_equal Expr.build([:number, 1]), a.derive(:x), "x'"
+    assert_equal Expr.build([:-, [:number, 1]]), a2.derive(:x), "x'"
     assert_equal Expr.build([:number, 0]), b.derive(:x), "3'"
     assert_equal Expr.build([:number, 0]), a.derive(:y), "3xdy"
     assert_equal Expr.build([:number, 3]), c.derive(:x), "3x'"
