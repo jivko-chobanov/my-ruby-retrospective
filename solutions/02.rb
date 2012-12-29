@@ -4,7 +4,7 @@ end
 
 class Song < Struct.new(*SongAttributes::NAMES)
   def self.parse(text)
-    new *text.split("\n")
+    new *text.split("\n").map(&:chomp)
   end
 end
 
