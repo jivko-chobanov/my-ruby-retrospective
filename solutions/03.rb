@@ -1,27 +1,35 @@
 class Expr
+  def self.classes_by_operation
+    {
+      :*        => Multiplication,
+      :+        => Addition,
+      :number   => Number,
+      :variable => Variable,
+      :-        => Negation,
+      :sin      => Sin,
+      :cos      => Cos,
+    }
+  end
+
   def self.build(tree)
     tree.size == 3 ? Binary.build(tree) : Unary.build(tree)
   end
 
   def self.class_name(tree)
-    case tree.first
-      when :*        then Multiplication
-      when :+        then Addition
-      when :number   then Number
-      when :variable then Variable
-      when :-        then Negation
-      when :sin      then Sin
-      when :cos      then Cos
-    end
+    classes_by_operation[tree.first]
   end
 
-  def child_class
-    Kernel.const_get(self.class.name)
+  def *(other)
+    Multiplication.new self, other
+  end
+
+  def +(other)
+    Addition.new self, other
   end
 end
 
 class Binary < Expr
-  attr_reader :left, :right
+  attr_reader :left, :right, :operation
 
   def self.build(tree)
     class_name(tree).new Expr.build(tree[1]), Expr.build(tree[2])
@@ -30,6 +38,7 @@ class Binary < Expr
   def initialize(left, right)
     @left = left
     @right = right
+    @operation = Expr::classes_by_operation.invert[self.class]
   end
 
   def ==(other)
@@ -42,14 +51,13 @@ class Binary < Expr
   end
 
   def simplify
-    simplified = child_class.new @left.simplify, @right.simplify
-    if simplified.left == neutral_element
-      simplified.right
-    elsif simplified.right == neutral_element
-      simplified.left
-    else 
-      simplified
+    sides = [@left.simplify, @right.simplify]
+    
+    sides.delete_if do |side|
+      side == neutral_element
     end
+    
+    sides.size > 0 ? sides.inject(operation) : neutral_element
   end
 end
 
