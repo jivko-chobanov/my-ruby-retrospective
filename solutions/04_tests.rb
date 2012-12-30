@@ -145,7 +145,7 @@ class Test4 < MiniTest::Unit::TestCase
     assert_equal 'aaaa', filter('aaaa')
     refute_equal 'bbbb', filter('aaaa')
     assert_equal 'sdfv [EMAIL]', filter('sdfv aaa@bbb.com')
-    assert_equal 'kefve [PHONE]kkave', filter('kefve 0883484637kkave')
+    assert_equal 'kefve [PHONE] kkave', filter('kefve 0883484637 kkave')
     assert_equal '[PHONE] [EMAIL]', filter('0883484637 aaa@bbb.com')
     assert_equal '[PHONE] a [PHONE]', filter('0883484637 a 08888888')
     assert_equal '[EMAIL]', filter('009-123456.+359123456@0123456.bg')

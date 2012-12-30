@@ -38,18 +38,21 @@ class TestTask3 < MiniTest::Unit::TestCase
 
   def test_simplify_no_trigonometry
     a = Expr.build [:number, 2]
-    a_var = Expr.build [:number, :x]
+    a_var = Expr.build [:variable, :x]
 
     b = Expr.build [:+, [:number, 2], [:number, 0]]
-    b_var = Expr.build [:+, [:number, :x], [:number, 0]]
+    b_var = Expr.build [:+, [:variable, :x], [:number, 0]]
     
     c = Expr.build [:*, [:number, 2], [:number, 1]]
     c_zero = Expr.build [:*, [:number, 2], [:number, 0]]
     zero = Expr.build [:number, 0]
 
+    d = Expr.build [:+, [:number, 1], [:number, 1]]
+
     assert_equal a, a.simplify, 'number'
     assert_equal a, b.simplify, 'sum'
     assert_equal a_var, b_var.simplify, 'sum with var'
+    assert_equal a, d.simplify, 'sum 1 + 1'
     assert_equal a, c.simplify, 'multipl 1'
     assert_equal zero, c_zero.simplify, 'multipl 0'
   end
@@ -101,7 +104,7 @@ class TestTask3 < MiniTest::Unit::TestCase
     c = Expr.build [:*, [:variable, :x], [:number, 3]]
 
     d = Expr.build [:+, [:variable, :x], [:variable, :x]]
-    d2 = Expr.build [:+, [:number, 1], [:number, 1]]
+    d2 = Expr.build [:number, 2]
 
     sin2 = Expr.build [:*, [:number, 2], [:cos, [:*, [:number, 2], [:variable, :a]]]]
     cos2 = Expr.build [:*, [:number, 2], [:-, [:sin, [:*, [:number, 2], [:variable, :a]]]]]

@@ -36,7 +36,7 @@ class Binary < Expr
   end
 
   def ==(other)
-    other.is_a? Binary and 
+    other.is_a? Binary and
       @left == other.left and @right == other.right
   end
 
@@ -46,11 +46,18 @@ class Binary < Expr
 
   def simplify
     sides = [@left.simplify, @right.simplify]
-    
+
+    if sides.all? { |side| side.is_a? Number }
+      calculated_value = sides.map(&:arg).inject do |accumulator, side|
+        accumulator.send(operation, side)
+      end
+      return Number.new calculated_value
+    end
+
     sides.delete_if do |side|
       side == neutral_element
     end
-    
+
     sides.size > 0 ? sides.inject(operation) : neutral_element
   end
 
@@ -75,7 +82,7 @@ class Unary < Expr
   def initialize(arg)
     @arg = arg
   end
-    
+
   def ==(other)
     other.is_a? Unary and @arg == other.arg
   end
@@ -110,8 +117,10 @@ class Multiplication < Binary
     simplified
   end
 
+  private
+
   def compute_derivative(x, y, dx, dy)
-    x * dy + y * dx
+    dx * y + x * dy
   end
 end
 
@@ -125,6 +134,8 @@ class Addition < Binary
   def neutral_element
     Number::ZERO
   end
+
+  private
 
   def compute_derivative(x, y, dx, dy)
     dx + dy
@@ -149,7 +160,7 @@ class Number < Value
 
   def derive(var)
     Number::ZERO
-  end 
+  end
 end
 
 class Variable < Value
@@ -167,10 +178,10 @@ class Variable < Value
   def derive(var)
     if var == @arg
       Number::ONE
-    else 
+    else
       Number::ZERO
     end
-  end 
+  end
 end
 
 class Negation < Unary
@@ -183,6 +194,8 @@ class Negation < Unary
   def evaluate(env = {})
     -@arg.evaluate(env)
   end
+
+  private
 
   def compute_derivative(x, dx)
     -dx
@@ -211,6 +224,8 @@ class Sin < Unary
     end
   end
 
+  private
+
   def compute_derivative(x, dx)
     dx * Cos.new(x)
   end
@@ -222,7 +237,7 @@ class Cos < Unary
   def evaluate(env = {})
     Math.cos @arg.evaluate(env)
   end
-  
+
   def simplify
     case @arg
       when Number::ZERO
@@ -237,6 +252,8 @@ class Cos < Unary
         Cos.new @arg.simplify
     end
   end
+
+  private
 
   def compute_derivative(x, dx)
     dx * -Sin.new(x)

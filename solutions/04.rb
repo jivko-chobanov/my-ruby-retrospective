@@ -5,11 +5,11 @@ module Patterns
   EMAIL = /\b(?<username>[0-9a-zA-Z][\w+.-]{,200})@(?<hostname>#{HOSTNAME})\b/i
 
   PHONE_DELIMITER = /[ ()-]{1,2}/
-  PHONE_LOCAL = /(?<![0-9A-Za-z+])0(?!0)(?:#{PHONE_DELIMITER}?\d+)+/
-  PHONE_GLOBAL = /(?:00|\+)\d{1,3}/
-  PHONE_MAIN = /(?:#{PHONE_DELIMITER}?\d){6,11}/
+  PHONE_LOCAL = /\b(?<![0-9A-Za-z+])0(?!0)(?:#{PHONE_DELIMITER}?\d+)+/
+  PHONE_GLOBAL = /(?:\b00|\+)[1-9]\d{,2}/
+  PHONE_MAIN = /(?:#{PHONE_DELIMITER}?\d){7,11}/
   PHONE_PREFIX = /(?:#{PHONE_LOCAL}|#{PHONE_GLOBAL})/
-  PHONE_NUMBER = /#{PHONE_PREFIX}#{PHONE_MAIN}/
+  PHONE_NUMBER = /#{PHONE_PREFIX}#{PHONE_MAIN}\b/
 
   IP_ADDRESS = /(\d+)\.(\d+)\.(\d+)\.(\d+)/
 
@@ -23,7 +23,7 @@ end
 class Validations
   class << self
     include Patterns
-    
+
     METHOD_PATTERNS = {
       email?: EMAIL,
       hostname?: HOSTNAME,
@@ -34,7 +34,7 @@ class Validations
 
     METHOD_PATTERNS.each do |method_name, pattern|
       define_method method_name do |text|
-        /\A#{pattern}\z/ =~ text
+        !!(/\A#{pattern}\z/ =~ text)
       end
     end
 
@@ -82,7 +82,7 @@ class PrivacyFilter
   end
 
   private
-  
+
   def filter_emails(text)
     text.gsub EMAIL do
       hidden_email $~[:username], $~[:hostname]

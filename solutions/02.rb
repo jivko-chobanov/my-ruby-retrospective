@@ -22,21 +22,33 @@ class Collection
   end
 
   # dynamically get SongAttributes::NAMES
-    # song_attr_accessors = 
+    # song_attr_accessors =
     #   Song.instance_methods - Struct.new(:anything).instance_methods
     # song_attributes = song_attr_accessors.select do |method_name|
     #   method_name.to_s[-1] != '='
     # end
-  SongAttributes::NAMES.each do |attribute|
-    define_method (attribute.to_s + 's') do
-      @songs.map(&attribute).uniq
-    end
+  # dynamical, but too nested...
+    # SongAttributes::NAMES.each do |attribute|
+    #   define_method (attribute.to_s + 's') do
+    #     @songs.map(&attribute).uniq
+    #   end
+    # end
+  def names
+    @songs.map(&:name).uniq
+  end
+
+  def artists
+    @songs.map(&:artist).uniq
+  end
+
+  def albums
+    @songs.map(&:album).uniq
   end
 
   def filter(criteria)
     Collection.new @songs.select { |song| criteria.matches? song }
   end
-  
+
   def adjoin(other)
     Collection.new @songs | other.songs
   end
@@ -48,11 +60,23 @@ end
 
 class Criteria
   class << self
-    SongAttributes::NAMES.each do |attribute|
-      define_method attribute do |value|
-        new ->(song) { song.send(attribute) == value }
-      end
+    def name(value)
+      new ->(song) { song.send(:name) == value }
     end
+
+    def artist(value)
+      new ->(song) { song.send(:artist) == value }
+    end
+
+    def album(value)
+      new ->(song) { song.send(:album) == value }
+    end
+    # dynamical, but too nested...
+      # SongAttributes::NAMES.each do |attribute|
+      #   define_method attribute do |value|
+      #     new ->(song) { song.send(attribute) == value }
+      #   end
+      # end
   end
 
   def initialize(condition)
