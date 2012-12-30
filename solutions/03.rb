@@ -167,9 +167,7 @@ class Variable < Value
   @@classes_by_operation[:variable] = self
 
   def evaluate(env = {})
-    if env.include? @arg
-      env[@arg]
-    else
+    env.fetch(@arg) do
       raise ArgumentError,
         "The expression has a variable #@arg which is not defined in environment"
     end
